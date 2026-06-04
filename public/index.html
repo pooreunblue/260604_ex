@@ -4,51 +4,426 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI 챗봇</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-      #chatForm {
+      :root {
+        --bg-color: #0f172a;
+        --container-bg: rgba(30, 41, 59, 0.7);
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --accent: #3b82f6;
+        --accent-hover: #2563eb;
+        --user-bubble: #3b82f6;
+        --ai-bubble: rgba(51, 65, 85, 0.8);
+        --border-color: rgba(255, 255, 255, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      body {
+        background: var(--bg-color);
+        background-image: radial-gradient(circle at top right, #1e1b4b, transparent 40%),
+                          radial-gradient(circle at bottom left, #0f172a, transparent 40%);
+        color: var(--text-main);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .app-container {
+        width: 100%;
+        max-width: 800px;
+        height: 85vh;
+        background: var(--container-bg);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--border-color);
+        border-radius: 24px;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      }
+
+      .header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(15, 23, 42, 0.5);
+      }
+
+      .header-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+      }
+
+      .header-controls {
+        display: flex;
         gap: 12px;
-        align-items: start;
+      }
+
+      select {
+        background: rgba(15, 23, 42, 0.6);
+        color: var(--text-main);
+        border: 1px solid var(--border-color);
+        padding: 8px 12px;
+        border-radius: 8px;
+        outline: none;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: border-color 0.2s;
+      }
+
+      select:hover, select:focus {
+        border-color: var(--accent);
+      }
+
+      .chat-container {
+        flex: 1;
+        padding: 24px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        scroll-behavior: smooth;
+      }
+
+      /* Custom Scrollbar */
+      .chat-container::-webkit-scrollbar {
+        width: 6px;
+      }
+      .chat-container::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .chat-container::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+      }
+      .chat-container::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .message {
+        display: flex;
+        flex-direction: column;
+        max-width: 80%;
+        animation: fadeIn 0.3s ease-out forwards;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .message.user {
+        align-self: flex-end;
+        align-items: flex-end;
+      }
+
+      .message.ai {
+        align-self: flex-start;
+        align-items: flex-start;
+      }
+
+      .bubble {
+        padding: 12px 16px;
+        border-radius: 18px;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      }
+
+      .user .bubble {
+        background: var(--user-bubble);
+        color: white;
+        border-bottom-right-radius: 4px;
+      }
+
+      .ai .bubble {
+        background: var(--ai-bubble);
+        border: 1px solid var(--border-color);
+        border-bottom-left-radius: 4px;
+      }
+
+      /* Markdown specific styling inside AI bubble */
+      .ai .bubble p { margin-bottom: 0.75em; }
+      .ai .bubble p:last-child { margin-bottom: 0; }
+      .ai .bubble pre {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 10px;
+        border-radius: 6px;
+        overflow-x: auto;
+        margin: 10px 0;
+        font-family: monospace;
+      }
+      .ai .bubble code {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 2px 4px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 0.9em;
+      }
+      .ai .bubble pre code { background: none; padding: 0; }
+      .ai .bubble ul, .ai .bubble ol { margin-left: 20px; margin-bottom: 10px; }
+
+      .sender-name {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+        padding: 0 4px;
+      }
+
+      .input-area {
+        padding: 20px 24px;
+        background: rgba(15, 23, 42, 0.8);
+        border-top: 1px solid var(--border-color);
+      }
+
+      #chatForm {
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+      }
+
+      .input-wrapper {
+        flex: 1;
+        position: relative;
+      }
+
+      input[name="ask"] {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+        padding: 14px 16px;
+        border-radius: 12px;
+        outline: none;
+        font-size: 1rem;
+        transition: all 0.2s;
+      }
+
+      input[name="ask"]:focus {
+        border-color: var(--accent);
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      button {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 14px 24px;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 100px;
+      }
+
+      button:hover {
+        background: var(--accent-hover);
+      }
+
+      button:disabled {
+        background: var(--text-muted);
+        cursor: not-allowed;
+      }
+
+      /* Loading Dots */
+      .typing-indicator {
+        display: none;
+        align-items: center;
+        gap: 4px;
+        padding: 12px 16px;
+        background: var(--ai-bubble);
+        border-radius: 18px;
+        border-bottom-left-radius: 4px;
+        width: fit-content;
+      }
+      .typing-indicator.visible {
+        display: flex;
+        animation: fadeIn 0.3s ease-out forwards;
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        background-color: var(--text-muted);
+        border-radius: 50%;
+        animation: bounce 1.4s infinite ease-in-out both;
+      }
+      .dot:nth-child(1) { animation-delay: -0.32s; }
+      .dot:nth-child(2) { animation-delay: -0.16s; }
+
+      @keyframes bounce {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
       }
     </style>
   </head>
   <body>
-    <form id="chatForm">
-      <select name="provider">
-        <option>google</option>
-        <option>groq</option>
-      </select>
-      <select name="model">
-        <option>gemma-4-26b-a4b-it</option>
-        <option>openai/gpt-oss-120b</option>
-      </select>
-      <input name="ask" />
-      <button>물어보기</button>
-    </form>
-    <section id="chatContainer"></section>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <div class="app-container">
+      <div class="header">
+        <div class="header-title">✨ AI 챗봇</div>
+        <div class="header-controls">
+          <select name="provider" id="providerSelect">
+            <option value="google">Google Gemini</option>
+            <option value="groq">Groq</option>
+          </select>
+          <select name="model" id="modelSelect">
+            <!-- Options dynamically populated by JS -->
+          </select>
+        </div>
+      </div>
+
+      <div class="chat-container" id="chatContainer">
+        <div class="message ai">
+          <div class="sender-name">AI Assistant</div>
+          <div class="bubble">안녕하세요! 무엇을 도와드릴까요?</div>
+        </div>
+        <!-- Messages will be appended here -->
+        
+        <div class="message ai" id="loadingMessage" style="display: none;">
+          <div class="sender-name">AI Assistant</div>
+          <div class="typing-indicator visible">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <form id="chatForm">
+          <div class="input-wrapper">
+            <input name="ask" type="text" placeholder="메시지를 입력하세요..." autocomplete="off" required />
+          </div>
+          <button type="submit" id="submitBtn">전송</button>
+        </form>
+      </div>
+    </div>
+
     <script>
-      const chatForm = document.querySelector("#chatForm");
-      const chatContainer = document.querySelector("#chatContainer");
+      const providerSelect = document.getElementById("providerSelect");
+      const modelSelect = document.getElementById("modelSelect");
+      const chatForm = document.getElementById("chatForm");
+      const chatContainer = document.getElementById("chatContainer");
+      const inputField = document.querySelector('input[name="ask"]');
+      const submitBtn = document.getElementById("submitBtn");
+      const loadingMessage = document.getElementById("loadingMessage");
+
+      const modelsByProvider = {
+        google: [
+          { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+          { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+          { value: "gemini-1.0-pro", label: "Gemini 1.0 Pro" }
+        ],
+        groq: [
+          { value: "llama3-8b-8192", label: "Llama 3 8B" },
+          { value: "llama3-70b-8192", label: "Llama 3 70B" },
+          { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
+          { value: "gemma-7b-it", label: "Gemma 7B IT" }
+        ]
+      };
+
+      // Populate model dropdown based on provider
+      function updateModels() {
+        const provider = providerSelect.value;
+        const models = modelsByProvider[provider] || [];
+        modelSelect.innerHTML = "";
+        models.forEach(m => {
+          const opt = document.createElement("option");
+          opt.value = m.value;
+          opt.textContent = m.label;
+          modelSelect.appendChild(opt);
+        });
+      }
+
+      providerSelect.addEventListener("change", updateModels);
+      // Initial populate
+      updateModels();
+
+      function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+
+      function appendMessage(role, content) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${role}`;
+        
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "sender-name";
+        nameDiv.textContent = role === 'user' ? '나' : 'AI Assistant';
+        
+        const bubbleDiv = document.createElement("div");
+        bubbleDiv.className = "bubble";
+        
+        if (role === 'ai') {
+          // Parse markdown for AI responses
+          bubbleDiv.innerHTML = marked.parse(content);
+        } else {
+          bubbleDiv.textContent = content;
+        }
+
+        messageDiv.appendChild(nameDiv);
+        messageDiv.appendChild(bubbleDiv);
+        
+        // Insert before loading message if it exists
+        chatContainer.insertBefore(messageDiv, loadingMessage);
+        scrollToBottom();
+      }
+
       chatForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const formData = new FormData(event.target);
-        console.log("formData", ...formData);
-        console.log("[클라이언트 요청 시작]");
-        const response = await axios.post(
-          "/chat",
-          Object.fromEntries(formData),
-        );
-        console.log("[클라이언트 요청 완료]");
-        // console.log("response", response.data);
-        const { result } = response.data;
-        const p = document.createElement("p");
-        p.innerHTML = `
-            <strong>질문</strong> : ${formData.get("ask")}<br>
-            <strong>대답</strong> : ${result}
-        `;
-        chatContainer.append(p);
+        
+        const ask = inputField.value.trim();
+        if (!ask) return;
+
+        const provider = providerSelect.value;
+        const model = modelSelect.value;
+
+        // Display user message
+        appendMessage('user', ask);
+        inputField.value = "";
+        
+        // UI Loading State
+        submitBtn.disabled = true;
+        submitBtn.textContent = "대기중";
+        loadingMessage.style.display = "flex";
+        scrollToBottom();
+
+        try {
+          const response = await axios.post("/chat", { provider, model, ask });
+          const { result } = response.data;
+          
+          // Hide loading
+          loadingMessage.style.display = "none";
+          
+          // Display AI message
+          appendMessage('ai', result);
+        } catch (error) {
+          loadingMessage.style.display = "none";
+          appendMessage('ai', "오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+          console.error("Chat Error:", error);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "전송";
+          inputField.focus();
+        }
       });
     </script>
   </body>
